@@ -281,19 +281,19 @@ class FullyConnectedNet(object):
             # 1) ==>FC==>
             out, fc_cache = affine_forward(out, self.params['W%d'%i], self.params['b%d'%i])
             if mode == "train":
-                # For inference we don't need cache, for train we do
                 cache['fc%d'%i] = fc_cache
             # 2) ==>BN==>
             if self.normalization=='batchnorm':
                 out, bn_cache = batchnorm_forward(out, self.params['gamma%d'%i], self.params['beta%d'%i], self.bn_params[i-1])
                 if mode == 'train':
-                    # For inference we don't need cache, for train we do
                     cache['bn%d'%(i)] = bn_cache
             # 3) ==>ReLU==>
             out, relu_cache = relu_forward(out)
             if mode == "train":
-                # For inference we don't need cache, for train we do
                 cache['relu%d'%(i)] = relu_cache.copy()
+            # 4) ==>Dropout==>
+            if self.use_dropout:
+                out, cache['dropout%d'%i] = dropout_forward(out, self.dropout_param)
         # Last layer
         out, cache['fc%d'%self.num_layers]= affine_forward(out, self.params['W%d'%self.num_layers], self.params['b%d'%self.num_layers])
         scores = out
@@ -328,12 +328,16 @@ class FullyConnectedNet(object):
         loss += 0.5*self.reg*L2_reg
         
         # Last layer
+        ## <==FC<==
         dx, dw, db = affine_backward(dout, cache['fc%d'%self.num_layers])
         grads['W%d'%self.num_layers] = dw + self.reg*self.params['W%d'%self.num_layers]
         grads['b%d'%self.num_layers] = db
         dout = dx
         
         for i in range(self.num_layers-1, 0, -1):
+            ## <==Dropout<==
+            if self.use_dropout:
+                dout = dropout_backward(dout, cache['dropout%d'%i])
             ## <==ReLU<==
             dout = relu_backward(dout, cache['relu%d'%i]) 
             ## <==BN<==
