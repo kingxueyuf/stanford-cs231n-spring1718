@@ -1,0 +1,7 @@
+*.swp
+*.pyc
+.env/*
+
+# gitignore the built release.
+cs231n/datasets/
+cs231n/datasets/*
