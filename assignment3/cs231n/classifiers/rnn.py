@@ -156,7 +156,8 @@ class CaptioningRNN(object):
         #     vectors for all timesteps, producing an array of shape (N, T, H).    #
         if self.cell_type == 'rnn':
             h_s, cache['rnn_forward'] = rnn_forward(captions_in_embed, h0, Wx, Wh, b)
-            
+        elif self.cell_type == 'lstm':
+            h_s, cache['lstm_forward'] = lstm_forward(captions_in_embed, h0, Wx, Wh, b)
         # (4) Use a (temporal) affine transformation to compute scores over the    #
         #     vocabulary at every timestep using the hidden states, giving an      #
         #     array of shape (N, T, V).                                            #
@@ -169,8 +170,10 @@ class CaptioningRNN(object):
         # backward
         dh, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dx, cache['temporal_affine_forward'])
         
-        dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dh, cache['rnn_forward'])
-        
+        if self.cell_type == 'rnn':
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dh, cache['rnn_forward'])
+        elif self.cell_type == 'lstm':
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = lstm_backward(dh, cache['lstm_forward'])
         grads['W_proj'] = features.T.dot(dh0)
         grads['b_proj'] = np.sum(dh0, axis=0)
         
@@ -251,7 +254,11 @@ class CaptioningRNN(object):
             if t==0:
                 h0 = features.dot(W_proj) + b_proj
                 next_h = h0
-            next_h, _ = rnn_step_forward(x_embed, next_h, Wx, Wh, b)
+                next_c = np.zeros(next_h.shape)
+            if self.cell_type == 'rnn':
+                next_h, _ = rnn_step_forward(x_embed, next_h, Wx, Wh, b)
+            elif self.cell_type == 'lstm':
+                next_h, next_c, _ = lstm_step_forward(x_embed, next_h, next_c, Wx, Wh, b)
         # (3) Apply the learned affine transformation to the next hidden state to #
         #     get scores for all words in the vocabulary                          #
             out = next_h.dot(W_vocab) + b_vocab
